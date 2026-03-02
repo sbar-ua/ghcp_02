@@ -20,11 +20,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Build participants list HTML
+        let participantsHTML = "<p><strong>Participants:</strong></p>";
+        if (details.participants && details.participants.length > 0) {
+          participantsHTML += '<ul class="participants-list">';
+          details.participants.forEach((p) => {
+            // each item gets a remove button with data attributes
+            participantsHTML += `<li><span class="participant-email">${p}</span> <button class="remove-btn" data-activity="${name}" data-email="${p}" title="Remove">&times;</button></li>`;
+          });
+          participantsHTML += '</ul>';
+        } else {
+          participantsHTML += '<p class="no-participants">No one signed up yet</p>';
+        }
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsHTML}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -42,6 +56,31 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Handle form submission
+
+  // Handle removal clicks via delegation
+  activitiesList.addEventListener("click", async (event) => {
+    if (event.target.matches(".remove-btn")) {
+      const btn = event.target;
+      const activity = btn.getAttribute("data-activity");
+      const email = btn.getAttribute("data-email");
+      try {
+        const response = await fetch(
+          `/activities/${encodeURIComponent(activity)}/participants?email=${encodeURIComponent(email)}`,
+          { method: "DELETE" }
+        );
+        if (response.ok) {
+          // refresh list
+          fetchActivities();
+        } else {
+          const err = await response.json();
+          console.error("Failed to remove", err);
+          alert(err.detail || "Could not remove participant");
+        }
+      } catch (err) {
+        console.error("Error removing participant", err);
+      }
+    }
+  });
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -62,6 +101,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // refresh activities so new participant appears immediately
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
